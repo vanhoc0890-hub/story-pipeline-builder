@@ -863,3 +863,183 @@ input {
     margin-left: 44px;
   }
 }
+/* =====================================================
+   STEP RUNTIME
+===================================================== */
+
+.step-runtime-row {
+  margin-top: 20px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+
+  padding-top: 16px;
+
+  border-top: 1px solid #1e293b;
+}
+
+.status-badge {
+  padding: 6px 10px;
+
+  border-radius: 999px;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  letter-spacing: 0.12em;
+}
+
+.status-idle {
+  border: 1px solid #334155;
+  background: #172033;
+  color: #94a3b8;
+}
+
+.status-running {
+  border: 1px solid #4338ca;
+  background: rgba(79, 70, 229, 0.15);
+  color: #a5b4fc;
+}
+
+.status-complete {
+  border: 1px solid #047857;
+  background: rgba(5, 150, 105, 0.12);
+  color: #6ee7b7;
+}
+
+.status-failed {
+  border: 1px solid #991b1b;
+  background: rgba(127, 29, 29, 0.18);
+  color: #fca5a5;
+}
+
+.run-step-button {
+  min-width: 130px;
+
+  padding: 10px 16px;
+
+  border: 1px solid #6366f1;
+  border-radius: 8px;
+
+  background: #4f46e5;
+  color: white;
+
+  cursor: pointer;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  letter-spacing: 0.08em;
+}
+
+.run-step-button:hover:not(:disabled) {
+  background: #6366f1;
+}
+
+.run-step-button:disabled {
+  border-color: #1e293b;
+  background: #1e293b;
+  color: #475569;
+
+  cursor: not-allowed;
+}
+
+/* =====================================================
+   STEP OUTPUT
+===================================================== */
+
+.step-output {
+  margin-top: 18px;
+
+  overflow: hidden;
+
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+
+  background: #020617;
+}
+
+.step-output-header {
+  padding: 10px 12px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  border-bottom: 1px solid #1e293b;
+
+  color: #64748b;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  letter-spacing: 0.12em;
+}
+
+.step-output pre {
+  margin: 0;
+
+  max-height: 480px;
+  overflow: auto;
+
+  padding: 16px;
+
+  white-space: pre-wrap;
+  word-break: break-word;
+
+  color: #cbd5e1;
+
+  font-family:
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.copy-output-button {
+  padding: 6px 10px;
+
+  border: 1px solid #334155;
+  border-radius: 6px;
+
+  background: #172033;
+  color: #cbd5e1;
+
+  cursor: pointer;
+
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.copy-output-button:hover {
+  border-color: #6366f1;
+  color: white;
+}
+
+/* =====================================================
+   STEP ERROR
+===================================================== */
+
+.step-error {
+  margin-top: 14px;
+
+  padding: 12px 14px;
+
+  border: 1px solid #7f1d1d;
+  border-radius: 8px;
+
+  background: rgba(127, 29, 29, 0.15);
+
+  color: #fecaca;
+
+  font-family:
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+
+  font-size: 11px;
+}
