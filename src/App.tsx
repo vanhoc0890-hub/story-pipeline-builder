@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { API_URL } from './config';
 
 type AppView =
   | 'SCRIPT'
@@ -14,12 +15,31 @@ type OutputDestination =
   | 'VIDEO_HOOKS'
   | 'FINAL_JSON';
 
+type StepStatus =
+  | 'IDLE'
+  | 'RUNNING'
+  | 'COMPLETE'
+  | 'FAILED';
+
 interface WorkflowStep {
   id: string;
   name: string;
   instruction: string;
-  outputType: OutputType;
-  outputDestination: OutputDestination;
+
+  outputType:
+    OutputType;
+
+  outputDestination:
+    OutputDestination;
+
+  status:
+    StepStatus;
+
+  output:
+    unknown;
+
+  error:
+    string | null;
 }
 
 function createStep(
@@ -32,11 +52,54 @@ function createStep(
         ? crypto.randomUUID()
         : `step-${Date.now()}-${index}`,
 
-    name: `Step ${index}`,
-    instruction: '',
-    outputType: 'TEXT',
-    outputDestination: 'GENERAL'
+    name:
+      `Step ${index}`,
+
+    instruction:
+      '',
+
+    outputType:
+      'TEXT',
+
+    outputDestination:
+      'GENERAL',
+
+    status:
+      'IDLE',
+
+    output:
+      null,
+
+    error:
+      null
   };
+}
+
+function formatOutput(
+  output: unknown
+): string {
+  if (
+    output === null ||
+    output === undefined
+  ) {
+    return '';
+  }
+
+  if (
+    typeof output === 'string'
+  ) {
+    return output;
+  }
+
+  try {
+    return JSON.stringify(
+      output,
+      null,
+      2
+    );
+  } catch {
+    return String(output);
+  }
 }
 
 export default function App() {
@@ -55,180 +118,517 @@ export default function App() {
   const characterCount =
     script.length;
 
-  const wordCount = useMemo(() => {
-    const trimmed =
-      script.trim();
+  const wordCount =
+    useMemo(() => {
+      const trimmed =
+        script.trim();
 
-    if (!trimmed) {
-      return 0;
-    }
+      if (!trimmed) {
+        return 0;
+      }
 
-    return trimmed
-      .split(/\s+/)
-      .filter(Boolean)
-      .length;
-  }, [script]);
+      return trimmed
+        .split(/\s+/)
+        .filter(Boolean)
+        .length;
+    }, [script]);
 
-  const handleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file =
-      event.target.files?.[0];
+  /* =====================================================
+     SCRIPT
+  ===================================================== */
 
-    if (!file) {
-      return;
-    }
+  const handleFileUpload =
+    async (
+      event:
+        React.ChangeEvent<HTMLInputElement>
+    ) => {
+      const file =
+        event.target.files?.[0];
 
-    const allowedExtensions = [
-      '.txt',
-      '.md'
-    ];
+      if (!file) {
+        return;
+      }
 
-    const lowerName =
-      file.name.toLowerCase();
+      const allowedExtensions = [
+        '.txt',
+        '.md'
+      ];
 
-    const validFile =
-      allowedExtensions.some(
-        extension =>
-          lowerName.endsWith(
-            extension
+      const lowerName =
+        file.name.toLowerCase();
+
+      const validFile =
+        allowedExtensions.some(
+          extension =>
+            lowerName.endsWith(
+              extension
+            )
+        );
+
+      if (!validFile) {
+        window.alert(
+          'Please upload a .txt or .md file.'
+        );
+
+        event.target.value =
+          '';
+
+        return;
+      }
+
+      try {
+        const text =
+          await file.text();
+
+        setScript(text);
+        setFileName(
+          file.name
+        );
+      } catch (error) {
+        console.error(
+          '[SCRIPT_FILE_READ_FAILED]',
+          error
+        );
+
+        window.alert(
+          'Could not read this file.'
+        );
+      }
+    };
+
+  const handleCreateProject =
+    () => {
+      if (
+        !script.trim()
+      ) {
+        window.alert(
+          'Please enter or upload a script first.'
+        );
+
+        return;
+      }
+
+      setView(
+        'WORKFLOW'
+      );
+    };
+
+  const handleHome =
+    () => {
+      setView(
+        'SCRIPT'
+      );
+    };
+
+  const handleNewScript =
+    () => {
+      const hasProjectData =
+        Boolean(
+          script.trim()
+        ) ||
+        steps.length > 0;
+
+      if (
+        hasProjectData
+      ) {
+        const confirmed =
+          window.confirm(
+            'Start a new project? Current script, workflow steps and results will be cleared.'
+          );
+
+        if (
+          !confirmed
+        ) {
+          return;
+        }
+      }
+
+      setScript('');
+      setFileName('');
+      setSteps([]);
+      setView('SCRIPT');
+    };
+
+  /* =====================================================
+     STEP EDITING
+  ===================================================== */
+
+  const addStep =
+    () => {
+      setSteps(
+        current => [
+          ...current,
+          createStep(
+            current.length + 1
+          )
+        ]
+      );
+    };
+
+  const invalidateFromIndex =
+    (
+      list: WorkflowStep[],
+      startIndex: number
+    ) => {
+      return list.map(
+        (
+          step,
+          index
+        ) => {
+          if (
+            index < startIndex
+          ) {
+            return step;
+          }
+
+          return {
+            ...step,
+            status:
+              'IDLE' as StepStatus,
+            output:
+              null,
+            error:
+              null
+          };
+        }
+      );
+    };
+
+  const updateStep =
+    (
+      stepId: string,
+      patch:
+        Partial<WorkflowStep>
+    ) => {
+      setSteps(
+        current => {
+          const index =
+            current.findIndex(
+              step =>
+                step.id ===
+                stepId
+            );
+
+          if (
+            index === -1
+          ) {
+            return current;
+          }
+
+          const next =
+            current.map(
+              step =>
+                step.id ===
+                stepId
+                  ? {
+                      ...step,
+                      ...patch
+                    }
+                  : step
+            );
+
+          return invalidateFromIndex(
+            next,
+            index
+          );
+        }
+      );
+    };
+
+  const deleteStep =
+    (
+      stepId: string
+    ) => {
+      setSteps(
+        current => {
+          const index =
+            current.findIndex(
+              step =>
+                step.id ===
+                stepId
+            );
+
+          const filtered =
+            current.filter(
+              step =>
+                step.id !==
+                stepId
+            );
+
+          if (
+            index === -1
+          ) {
+            return filtered;
+          }
+
+          return invalidateFromIndex(
+            filtered,
+            Math.max(
+              0,
+              index
+            )
+          );
+        }
+      );
+    };
+
+  const moveStep =
+    (
+      index: number,
+      direction:
+        'UP' |
+        'DOWN'
+    ) => {
+      setSteps(
+        current => {
+          const targetIndex =
+            direction ===
+            'UP'
+              ? index - 1
+              : index + 1;
+
+          if (
+            targetIndex < 0 ||
+            targetIndex >=
+              current.length
+          ) {
+            return current;
+          }
+
+          const next =
+            [...current];
+
+          const temp =
+            next[index];
+
+          next[index] =
+            next[targetIndex];
+
+          next[targetIndex] =
+            temp;
+
+          const invalidateIndex =
+            Math.min(
+              index,
+              targetIndex
+            );
+
+          return invalidateFromIndex(
+            next,
+            invalidateIndex
+          );
+        }
+      );
+    };
+
+  /* =====================================================
+     RUN ONE STEP
+  ===================================================== */
+
+  const runStep =
+    async (
+      stepIndex: number
+    ) => {
+      const step =
+        steps[
+          stepIndex
+        ];
+
+      if (!step) {
+        return;
+      }
+
+      if (
+        !step.instruction.trim()
+      ) {
+        window.alert(
+          'Please enter an instruction for this step.'
+        );
+
+        return;
+      }
+
+      if (
+        stepIndex > 0
+      ) {
+        const previousStep =
+          steps[
+            stepIndex - 1
+          ];
+
+        if (
+          previousStep.status !==
+          'COMPLETE'
+        ) {
+          window.alert(
+            `Step ${stepIndex} must be completed before Step ${stepIndex + 1} can run.`
+          );
+
+          return;
+        }
+      }
+
+      if (!API_URL) {
+        window.alert(
+          'API URL is not configured.'
+        );
+
+        return;
+      }
+
+      setSteps(
+        current =>
+          current.map(
+            (
+              item,
+              index
+            ) =>
+              index ===
+              stepIndex
+                ? {
+                    ...item,
+                    status:
+                      'RUNNING',
+                    error:
+                      null
+                  }
+                : item
           )
       );
 
-    if (!validFile) {
-      window.alert(
-        'Please upload a .txt or .md file.'
-      );
+      const previousOutputs =
+        steps
+          .slice(
+            0,
+            stepIndex
+          )
+          .filter(
+            previous =>
+              previous.status ===
+              'COMPLETE'
+          )
+          .map(
+            (
+              previous,
+              index
+            ) => ({
+              stepNumber:
+                index + 1,
 
-      event.target.value = '';
-      return;
-    }
+              name:
+                previous.name,
 
-    try {
-      const text =
-        await file.text();
+              output:
+                previous.output
+            })
+          );
 
-      setScript(text);
-      setFileName(file.name);
-    } catch (error) {
-      console.error(
-        '[SCRIPT_FILE_READ_FAILED]',
-        error
-      );
+      try {
+        const response =
+          await fetch(
+            `${API_URL}/run-step`,
+            {
+              method:
+                'POST',
 
-      window.alert(
-        'Could not read this file.'
-      );
-    }
-  };
+              headers: {
+                'Content-Type':
+                  'application/json'
+              },
 
-  const handleCreateProject = () => {
-    if (!script.trim()) {
-      window.alert(
-        'Please enter or upload a script first.'
-      );
+              body:
+                JSON.stringify({
+                  script,
 
-      return;
-    }
+                  stepName:
+                    step.name,
 
-    setView('WORKFLOW');
-  };
+                  instruction:
+                    step.instruction,
 
-  const handleNewScript = () => {
-    const hasProjectData =
-      Boolean(script.trim()) ||
-      steps.length > 0;
+                  previousOutputs,
 
-    if (hasProjectData) {
-      const confirmed =
-        window.confirm(
-          'Start a new project? Current script and workflow steps will be cleared.'
+                  outputType:
+                    step.outputType
+                })
+            }
+          );
+
+        let data:
+          any = null;
+
+        try {
+          data =
+            await response.json();
+        } catch {
+          throw new Error(
+            'INVALID_BACKEND_RESPONSE'
+          );
+        }
+
+        if (
+          !response.ok ||
+          !data?.ok
+        ) {
+          throw new Error(
+            data?.detail ||
+            data?.error ||
+            `HTTP_${response.status}`
+          );
+        }
+
+        setSteps(
+          current =>
+            current.map(
+              (
+                item,
+                index
+              ) =>
+                index ===
+                stepIndex
+                  ? {
+                      ...item,
+                      status:
+                        'COMPLETE',
+                      output:
+                        data.output,
+                      error:
+                        null
+                    }
+                  : item
+            )
         );
 
-      if (!confirmed) {
-        return;
-      }
-    }
-
-    setScript('');
-    setFileName('');
-    setSteps([]);
-    setView('SCRIPT');
-  };
-
-  const handleHome = () => {
-    setView('SCRIPT');
-  };
-
-  const addStep = () => {
-    setSteps(current => [
-      ...current,
-      createStep(
-        current.length + 1
-      )
-    ]);
-  };
-
-  const updateStep = (
-    stepId: string,
-    patch: Partial<WorkflowStep>
-  ) => {
-    setSteps(current =>
-      current.map(step =>
-        step.id === stepId
-          ? {
-              ...step,
-              ...patch
-            }
-          : step
-      )
-    );
-  };
-
-  const deleteStep = (
-    stepId: string
-  ) => {
-    setSteps(current =>
-      current.filter(
-        step =>
-          step.id !== stepId
-      )
-    );
-  };
-
-  const moveStep = (
-    index: number,
-    direction: 'UP' | 'DOWN'
-  ) => {
-    setSteps(current => {
-      const targetIndex =
-        direction === 'UP'
-          ? index - 1
-          : index + 1;
-
-      if (
-        targetIndex < 0 ||
-        targetIndex >=
-          current.length
+      } catch (
+        error: any
       ) {
-        return current;
+        console.error(
+          '[RUN_STEP_FAILED]',
+          error
+        );
+
+        setSteps(
+          current =>
+            current.map(
+              (
+                item,
+                index
+              ) =>
+                index ===
+                stepIndex
+                  ? {
+                      ...item,
+                      status:
+                        'FAILED',
+                      error:
+                        error?.message ||
+                        'UNKNOWN_ERROR'
+                    }
+                  : item
+            )
+        );
       }
-
-      const next =
-        [...current];
-
-      const temp =
-        next[index];
-
-      next[index] =
-        next[targetIndex];
-
-      next[targetIndex] =
-        temp;
-
-      return next;
-    });
-  };
+    };
 
   return (
     <div className="app-shell">
@@ -247,11 +647,14 @@ export default function App() {
 
         <div className="topbar-actions">
 
-          {view === 'WORKFLOW' && (
+          {view ===
+            'WORKFLOW' && (
             <button
               type="button"
               className="ghost-button"
-              onClick={handleHome}
+              onClick={
+                handleHome
+              }
             >
               ← Home
             </button>
@@ -260,7 +663,9 @@ export default function App() {
           <button
             type="button"
             className="ghost-button"
-            onClick={handleNewScript}
+            onClick={
+              handleNewScript
+            }
           >
             + New Script
           </button>
@@ -269,48 +674,79 @@ export default function App() {
 
       </header>
 
-      {view === 'SCRIPT' && (
+      {view ===
+        'SCRIPT' && (
         <ScriptInputScreen
-          script={script}
-          fileName={fileName}
+          script={
+            script
+          }
+          fileName={
+            fileName
+          }
           characterCount={
             characterCount
           }
           wordCount={
             wordCount
           }
+
           onScriptChange={
             value => {
-              setScript(value);
+              setScript(
+                value
+              );
 
-              if (fileName) {
+              if (
+                fileName
+              ) {
                 setFileName('');
               }
             }
           }
+
           onFileUpload={
             handleFileUpload
           }
+
           onCreateProject={
             handleCreateProject
           }
         />
       )}
 
-      {view === 'WORKFLOW' && (
+      {view ===
+        'WORKFLOW' && (
         <WorkflowScreen
-          script={script}
-          fileName={fileName}
-          steps={steps}
-          onAddStep={addStep}
+          script={
+            script
+          }
+
+          fileName={
+            fileName
+          }
+
+          steps={
+            steps
+          }
+
+          onAddStep={
+            addStep
+          }
+
           onUpdateStep={
             updateStep
           }
+
           onDeleteStep={
             deleteStep
           }
+
           onMoveStep={
             moveStep
+          }
+
+          onRunStep={
+            runStep
           }
         />
       )}
@@ -324,18 +760,32 @@ export default function App() {
 ===================================================== */
 
 interface ScriptInputScreenProps {
-  script: string;
-  fileName: string;
-  characterCount: number;
-  wordCount: number;
-  onScriptChange: (
-    value: string
-  ) => void;
-  onFileUpload: (
-    event:
-      React.ChangeEvent<HTMLInputElement>
-  ) => void;
-  onCreateProject: () => void;
+  script:
+    string;
+
+  fileName:
+    string;
+
+  characterCount:
+    number;
+
+  wordCount:
+    number;
+
+  onScriptChange:
+    (
+      value:
+        string
+    ) => void;
+
+  onFileUpload:
+    (
+      event:
+        React.ChangeEvent<HTMLInputElement>
+    ) => void;
+
+  onCreateProject:
+    () => void;
 }
 
 const ScriptInputScreen:
@@ -385,6 +835,7 @@ React.FC<
           </div>
 
           <label className="upload-button">
+
             Upload Script
 
             <input
@@ -395,6 +846,7 @@ React.FC<
               }
               hidden
             />
+
           </label>
 
         </div>
@@ -402,7 +854,9 @@ React.FC<
         <textarea
           className="script-textarea"
           placeholder="Paste your full script here..."
-          value={script}
+          value={
+            script
+          }
           onChange={
             event =>
               onScriptChange(
@@ -465,21 +919,46 @@ React.FC<
 ===================================================== */
 
 interface WorkflowScreenProps {
-  script: string;
-  fileName: string;
-  steps: WorkflowStep[];
-  onAddStep: () => void;
-  onUpdateStep: (
-    stepId: string,
-    patch: Partial<WorkflowStep>
-  ) => void;
-  onDeleteStep: (
-    stepId: string
-  ) => void;
-  onMoveStep: (
-    index: number,
-    direction: 'UP' | 'DOWN'
-  ) => void;
+  script:
+    string;
+
+  fileName:
+    string;
+
+  steps:
+    WorkflowStep[];
+
+  onAddStep:
+    () => void;
+
+  onUpdateStep:
+    (
+      stepId:
+        string,
+      patch:
+        Partial<WorkflowStep>
+    ) => void;
+
+  onDeleteStep:
+    (
+      stepId:
+        string
+    ) => void;
+
+  onMoveStep:
+    (
+      index:
+        number,
+      direction:
+        'UP' |
+        'DOWN'
+    ) => void;
+
+  onRunStep:
+    (
+      stepIndex:
+        number
+    ) => void;
 }
 
 const WorkflowScreen:
@@ -492,7 +971,8 @@ React.FC<
   onAddStep,
   onUpdateStep,
   onDeleteStep,
-  onMoveStep
+  onMoveStep,
+  onRunStep
 }) => {
   return (
     <main className="main-content">
@@ -500,6 +980,7 @@ React.FC<
       <section className="workflow-header">
 
         <div>
+
           <div className="step-badge">
             CUSTOM WORKFLOW
           </div>
@@ -509,14 +990,17 @@ React.FC<
           </h2>
 
           <p>
-            Steps will later run strictly from top to bottom.
+            Steps run strictly from top to bottom.
           </p>
+
         </div>
 
         <button
           type="button"
           className="primary-button"
-          onClick={onAddStep}
+          onClick={
+            onAddStep
+          }
         >
           + Add Step
         </button>
@@ -526,6 +1010,7 @@ React.FC<
       <section className="project-summary">
 
         <div>
+
           <span className="summary-label">
             SCRIPT
           </span>
@@ -534,9 +1019,11 @@ React.FC<
             {fileName ||
               'Pasted Script'}
           </strong>
+
         </div>
 
         <div>
+
           <span className="summary-label">
             CHARACTERS
           </span>
@@ -544,9 +1031,11 @@ React.FC<
           <strong>
             {script.length.toLocaleString()}
           </strong>
+
         </div>
 
         <div>
+
           <span className="summary-label">
             STEPS
           </span>
@@ -554,95 +1043,125 @@ React.FC<
           <strong>
             {steps.length}
           </strong>
+
         </div>
 
       </section>
 
-      {steps.length === 0 ? (
+      {steps.length === 0
+        ? (
+          <section className="empty-workflow">
 
-        <section className="empty-workflow">
+            <div className="empty-icon">
+              +
+            </div>
 
-          <div className="empty-icon">
-            +
-          </div>
+            <h3>
+              No workflow steps yet
+            </h3>
 
-          <h3>
-            No workflow steps yet
-          </h3>
+            <p>
+              Add your first instruction step.
+            </p>
 
-          <p>
-            Add your first instruction step.
-            You can create as many steps as your workflow requires.
-          </p>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={
+                onAddStep
+              }
+            >
+              + Add First Step
+            </button>
 
-          <button
-            type="button"
-            className="primary-button"
-            onClick={onAddStep}
-          >
-            + Add First Step
-          </button>
+          </section>
+        )
+        : (
+          <section className="workflow-list">
 
-        </section>
+            {steps.map(
+              (
+                step,
+                index
+              ) => (
+                <WorkflowStepCard
+                  key={
+                    step.id
+                  }
 
-      ) : (
+                  step={
+                    step
+                  }
 
-        <section className="workflow-list">
+                  index={
+                    index
+                  }
 
-          {steps.map(
-            (
-              step,
-              index
-            ) => (
-              <WorkflowStepCard
-                key={step.id}
-                step={step}
-                index={index}
-                totalSteps={
-                  steps.length
-                }
-                onUpdate={
-                  patch =>
-                    onUpdateStep(
-                      step.id,
-                      patch
-                    )
-                }
-                onDelete={
-                  () =>
-                    onDeleteStep(
-                      step.id
-                    )
-                }
-                onMoveUp={
-                  () =>
-                    onMoveStep(
-                      index,
-                      'UP'
-                    )
-                }
-                onMoveDown={
-                  () =>
-                    onMoveStep(
-                      index,
-                      'DOWN'
-                    )
-                }
-              />
-            )
-          )}
+                  totalSteps={
+                    steps.length
+                  }
 
-          <button
-            type="button"
-            className="add-step-bottom"
-            onClick={onAddStep}
-          >
-            + Add Another Step
-          </button>
+                  previousComplete={
+                    index === 0 ||
+                    steps[
+                      index - 1
+                    ]?.status ===
+                    'COMPLETE'
+                  }
 
-        </section>
+                  onUpdate={
+                    patch =>
+                      onUpdateStep(
+                        step.id,
+                        patch
+                      )
+                  }
 
-      )}
+                  onDelete={
+                    () =>
+                      onDeleteStep(
+                        step.id
+                      )
+                  }
+
+                  onMoveUp={
+                    () =>
+                      onMoveStep(
+                        index,
+                        'UP'
+                      )
+                  }
+
+                  onMoveDown={
+                    () =>
+                      onMoveStep(
+                        index,
+                        'DOWN'
+                      )
+                  }
+
+                  onRun={
+                    () =>
+                      onRunStep(
+                        index
+                      )
+                  }
+                />
+              )
+            )}
+
+            <button
+              type="button"
+              className="add-step-bottom"
+              onClick={
+                onAddStep
+              }
+            >
+              + Add Another Step
+            </button>
+
+          </section>
+        )}
 
     </main>
   );
@@ -653,15 +1172,35 @@ React.FC<
 ===================================================== */
 
 interface WorkflowStepCardProps {
-  step: WorkflowStep;
-  index: number;
-  totalSteps: number;
-  onUpdate: (
-    patch: Partial<WorkflowStep>
-  ) => void;
-  onDelete: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
+  step:
+    WorkflowStep;
+
+  index:
+    number;
+
+  totalSteps:
+    number;
+
+  previousComplete:
+    boolean;
+
+  onUpdate:
+    (
+      patch:
+        Partial<WorkflowStep>
+    ) => void;
+
+  onDelete:
+    () => void;
+
+  onMoveUp:
+    () => void;
+
+  onMoveDown:
+    () => void;
+
+  onRun:
+    () => void;
 }
 
 const WorkflowStepCard:
@@ -671,11 +1210,20 @@ React.FC<
   step,
   index,
   totalSteps,
+  previousComplete,
   onUpdate,
   onDelete,
   onMoveUp,
-  onMoveDown
+  onMoveDown,
+  onRun
 }) => {
+  const isRunning =
+    step.status ===
+    'RUNNING';
+
+  const isLocked =
+    !previousComplete;
+
   return (
     <article className="workflow-step-card">
 
@@ -704,7 +1252,12 @@ React.FC<
 
             <input
               className="text-input"
-              value={step.name}
+              value={
+                step.name
+              }
+              disabled={
+                isRunning
+              }
               onChange={
                 event =>
                   onUpdate({
@@ -721,11 +1274,13 @@ React.FC<
             <button
               type="button"
               className="icon-button"
-              onClick={onMoveUp}
-              disabled={
-                index === 0
+              onClick={
+                onMoveUp
               }
-              title="Move Up"
+              disabled={
+                index === 0 ||
+                isRunning
+              }
             >
               ↑
             </button>
@@ -738,9 +1293,9 @@ React.FC<
               }
               disabled={
                 index ===
-                totalSteps - 1
+                totalSteps - 1 ||
+                isRunning
               }
-              title="Move Down"
             >
               ↓
             </button>
@@ -751,7 +1306,9 @@ React.FC<
               onClick={
                 onDelete
               }
-              title="Delete Step"
+              disabled={
+                isRunning
+              }
             >
               ×
             </button>
@@ -771,6 +1328,9 @@ React.FC<
             placeholder="Write the AI instruction for this step..."
             value={
               step.instruction
+            }
+            disabled={
+              isRunning
             }
             onChange={
               event =>
@@ -796,12 +1356,15 @@ React.FC<
               value={
                 step.outputType
               }
+              disabled={
+                isRunning
+              }
               onChange={
                 event =>
                   onUpdate({
                     outputType:
-                      event.target
-                        .value as OutputType
+                      event.target.value
+                        as OutputType
                   })
               }
             >
@@ -829,12 +1392,15 @@ React.FC<
               value={
                 step.outputDestination
               }
+              disabled={
+                isRunning
+              }
               onChange={
                 event =>
                   onUpdate({
                     outputDestination:
-                      event.target
-                        .value as OutputDestination
+                      event.target.value
+                        as OutputDestination
                   })
               }
             >
@@ -861,11 +1427,91 @@ React.FC<
 
         </div>
 
+        <div className="step-runtime-row">
+
+          <div
+            className={`status-badge status-${step.status.toLowerCase()}`}
+          >
+            {isLocked
+              ? 'LOCKED'
+              : step.status}
+          </div>
+
+          <button
+            type="button"
+            className="run-step-button"
+            onClick={
+              onRun
+            }
+            disabled={
+              isRunning ||
+              isLocked ||
+              !step.instruction.trim()
+            }
+          >
+            {isRunning
+              ? 'RUNNING...'
+              : step.status ===
+                  'COMPLETE'
+                ? 'RUN AGAIN'
+                : step.status ===
+                    'FAILED'
+                  ? 'RETRY STEP'
+                  : 'RUN STEP'}
+          </button>
+
+        </div>
+
+        {step.error && (
+          <div className="step-error">
+            {step.error}
+          </div>
+        )}
+
+        {step.status ===
+          'COMPLETE' && (
+          <div className="step-output">
+
+            <div className="step-output-header">
+
+              <span>
+                STEP OUTPUT
+              </span>
+
+              <button
+                type="button"
+                className="copy-output-button"
+                onClick={
+                  () => {
+                    navigator.clipboard
+                      .writeText(
+                        formatOutput(
+                          step.output
+                        )
+                      );
+                  }
+                }
+              >
+                Copy
+              </button>
+
+            </div>
+
+            <pre>
+              {formatOutput(
+                step.output
+              )}
+            </pre>
+
+          </div>
+        )}
+
         <div className="step-order-note">
-          STEP {index + 1} WILL RUN AFTER STEP {index}
+
           {index === 0
-            ? ' — FIRST AI STEP'
-            : ''}
+            ? 'STEP 1 — FIRST AI STEP'
+            : `STEP ${index + 1} WILL RUN AFTER STEP ${index}`}
+
         </div>
 
       </div>
