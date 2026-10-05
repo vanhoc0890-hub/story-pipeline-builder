@@ -1,4 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, {
+  useMemo,
+  useRef,
+  useState
+} from 'react';
+
 import { API_URL } from './config';
 
 type AppView =
@@ -20,6 +25,13 @@ type StepStatus =
   | 'RUNNING'
   | 'COMPLETE'
   | 'FAILED';
+
+type WorkflowStatus =
+  | 'IDLE'
+  | 'RUNNING'
+  | 'PAUSED'
+  | 'FAILED'
+  | 'COMPLETE';
 
 interface WorkflowStep {
   id: string;
@@ -115,6 +127,15 @@ export default function App() {
   const [steps, setSteps] =
     useState<WorkflowStep[]>([]);
 
+  const [workflowStatus, setWorkflowStatus] =
+    useState<WorkflowStatus>('IDLE');
+
+  const pauseRequestedRef =
+    useRef(false);
+
+  const stepsRef =
+    useRef<WorkflowStep[]>([]);
+
   const characterCount =
     script.length;
 
@@ -132,6 +153,46 @@ export default function App() {
         .filter(Boolean)
         .length;
     }, [script]);
+
+  const completedCount =
+    steps.filter(
+      step =>
+        step.status ===
+        'COMPLETE'
+    ).length;
+
+  const progressPercent =
+    steps.length === 0
+      ? 0
+      : Math.round(
+          (
+            completedCount /
+            steps.length
+          ) * 100
+        );
+
+  const syncSteps =
+    (
+      updater:
+        (
+          current:
+            WorkflowStep[]
+        ) => WorkflowStep[]
+    ) => {
+      setSteps(
+        current => {
+          const next =
+            updater(
+              current
+            );
+
+          stepsRef.current =
+            next;
+
+          return next;
+        }
+      );
+    };
 
   /* =====================================================
      SCRIPT
@@ -243,9 +304,14 @@ export default function App() {
         }
       }
 
+      pauseRequestedRef.current =
+        true;
+
       setScript('');
       setFileName('');
       setSteps([]);
+      stepsRef.current = [];
+      setWorkflowStatus('IDLE');
       setView('SCRIPT');
     };
 
@@ -253,22 +319,12 @@ export default function App() {
      STEP EDITING
   ===================================================== */
 
-  const addStep =
-    () => {
-      setSteps(
-        current => [
-          ...current,
-          createStep(
-            current.length + 1
-          )
-        ]
-      );
-    };
-
   const invalidateFromIndex =
     (
-      list: WorkflowStep[],
-      startIndex: number
+      list:
+        WorkflowStep[],
+      startIndex:
+        number
     ) => {
       return list.map(
         (
@@ -294,13 +350,44 @@ export default function App() {
       );
     };
 
+  const addStep =
+    () => {
+      if (
+        workflowStatus ===
+        'RUNNING'
+      ) {
+        return;
+      }
+
+      syncSteps(
+        current => [
+          ...current,
+          createStep(
+            current.length + 1
+          )
+        ]
+      );
+
+      setWorkflowStatus(
+        'IDLE'
+      );
+    };
+
   const updateStep =
     (
-      stepId: string,
+      stepId:
+        string,
       patch:
         Partial<WorkflowStep>
     ) => {
-      setSteps(
+      if (
+        workflowStatus ===
+        'RUNNING'
+      ) {
+        return;
+      }
+
+      syncSteps(
         current => {
           const index =
             current.findIndex(
@@ -333,13 +420,25 @@ export default function App() {
           );
         }
       );
+
+      setWorkflowStatus(
+        'IDLE'
+      );
     };
 
   const deleteStep =
     (
-      stepId: string
+      stepId:
+        string
     ) => {
-      setSteps(
+      if (
+        workflowStatus ===
+        'RUNNING'
+      ) {
+        return;
+      }
+
+      syncSteps(
         current => {
           const index =
             current.findIndex(
@@ -370,16 +469,28 @@ export default function App() {
           );
         }
       );
+
+      setWorkflowStatus(
+        'IDLE'
+      );
     };
 
   const moveStep =
     (
-      index: number,
+      index:
+        number,
       direction:
         'UP' |
         'DOWN'
     ) => {
-      setSteps(
+      if (
+        workflowStatus ===
+        'RUNNING'
+      ) {
+        return;
+      }
+
+      syncSteps(
         current => {
           const targetIndex =
             direction ===
@@ -419,85 +530,90 @@ export default function App() {
           );
         }
       );
+
+      setWorkflowStatus(
+        'IDLE'
+      );
     };
 
   /* =====================================================
      RUN ONE STEP
   ===================================================== */
 
-  const runStep =
+  const executeStep =
     async (
-      stepIndex: number
-    ) => {
+      stepIndex:
+        number
+    ): Promise<
+      'COMPLETE' |
+      'FAILED'
+    > => {
+      const currentSteps =
+        stepsRef.current.length
+          ? stepsRef.current
+          : steps;
+
       const step =
-        steps[
+        currentSteps[
           stepIndex
         ];
 
       if (!step) {
-        return;
+        return 'FAILED';
       }
 
       if (
         !step.instruction.trim()
       ) {
-        window.alert(
-          'Please enter an instruction for this step.'
+        syncSteps(
+          current =>
+            current.map(
+              (
+                item,
+                index
+              ) =>
+                index ===
+                stepIndex
+                  ? {
+                      ...item,
+                      status:
+                        'FAILED',
+                      error:
+                        'STEP_INSTRUCTION_REQUIRED'
+                    }
+                  : item
+            )
         );
 
-        return;
-      }
-
-      if (
-        stepIndex > 0
-      ) {
-        const previousStep =
-          steps[
-            stepIndex - 1
-          ];
-
-        if (
-          previousStep.status !==
-          'COMPLETE'
-        ) {
-          window.alert(
-            `Step ${stepIndex} must be completed before Step ${stepIndex + 1} can run.`
-          );
-
-          return;
-        }
+        return 'FAILED';
       }
 
       if (!API_URL) {
-        window.alert(
-          'API URL is not configured.'
+        syncSteps(
+          current =>
+            current.map(
+              (
+                item,
+                index
+              ) =>
+                index ===
+                stepIndex
+                  ? {
+                      ...item,
+                      status:
+                        'FAILED',
+                      error:
+                        'API_URL_NOT_CONFIGURED'
+                    }
+                  : item
+            )
         );
 
-        return;
+        return 'FAILED';
       }
 
-      setSteps(
-        current =>
-          current.map(
-            (
-              item,
-              index
-            ) =>
-              index ===
-              stepIndex
-                ? {
-                    ...item,
-                    status:
-                      'RUNNING',
-                    error:
-                      null
-                  }
-                : item
-          )
-      );
-
       const previousOutputs =
-        steps
+        currentSteps
           .slice(
             0,
             stepIndex
@@ -522,6 +638,26 @@ export default function App() {
                 previous.output
             })
           );
+
+      syncSteps(
+        current =>
+          current.map(
+            (
+              item,
+              index
+            ) =>
+              index ===
+              stepIndex
+                ? {
+                    ...item,
+                    status:
+                      'RUNNING',
+                    error:
+                      null
+                  }
+                : item
+          )
+      );
 
       try {
         const response =
@@ -577,7 +713,7 @@ export default function App() {
           );
         }
 
-        setSteps(
+        syncSteps(
           current =>
             current.map(
               (
@@ -599,6 +735,8 @@ export default function App() {
             )
         );
 
+        return 'COMPLETE';
+
       } catch (
         error: any
       ) {
@@ -607,7 +745,7 @@ export default function App() {
           error
         );
 
-        setSteps(
+        syncSteps(
           current =>
             current.map(
               (
@@ -627,7 +765,237 @@ export default function App() {
                   : item
             )
         );
+
+        return 'FAILED';
       }
+    };
+
+  const runStep =
+    async (
+      stepIndex:
+        number
+    ) => {
+      if (
+        workflowStatus ===
+        'RUNNING'
+      ) {
+        return;
+      }
+
+      const currentSteps =
+        stepsRef.current.length
+          ? stepsRef.current
+          : steps;
+
+      if (
+        stepIndex > 0 &&
+        currentSteps[
+          stepIndex - 1
+        ]?.status !==
+          'COMPLETE'
+      ) {
+        window.alert(
+          `Step ${stepIndex} must be completed before Step ${stepIndex + 1} can run.`
+        );
+
+        return;
+      }
+
+      const result =
+        await executeStep(
+          stepIndex
+        );
+
+      if (
+        result ===
+        'FAILED'
+      ) {
+        setWorkflowStatus(
+          'FAILED'
+        );
+      }
+    };
+
+  /* =====================================================
+     RUN ALL
+  ===================================================== */
+
+  const runSequentially =
+    async (
+      startIndex:
+        number
+    ) => {
+      if (
+        steps.length === 0
+      ) {
+        window.alert(
+          'Please add at least one workflow step.'
+        );
+
+        return;
+      }
+
+      pauseRequestedRef.current =
+        false;
+
+      setWorkflowStatus(
+        'RUNNING'
+      );
+
+      for (
+        let index =
+          startIndex;
+        index <
+          stepsRef.current.length;
+        index += 1
+      ) {
+        const current =
+          stepsRef.current[
+            index
+          ];
+
+        if (
+          current?.status ===
+          'COMPLETE'
+        ) {
+          continue;
+        }
+
+        const result =
+          await executeStep(
+            index
+          );
+
+        if (
+          result ===
+          'FAILED'
+        ) {
+          setWorkflowStatus(
+            'FAILED'
+          );
+
+          return;
+        }
+
+        if (
+          pauseRequestedRef.current
+        ) {
+          setWorkflowStatus(
+            'PAUSED'
+          );
+
+          return;
+        }
+      }
+
+      setWorkflowStatus(
+        'COMPLETE'
+      );
+    };
+
+  const handleRunAll =
+    async () => {
+      if (
+        workflowStatus ===
+        'RUNNING'
+      ) {
+        return;
+      }
+
+      if (
+        steps.length === 0
+      ) {
+        window.alert(
+          'Please add at least one workflow step.'
+        );
+
+        return;
+      }
+
+      const emptyInstructionIndex =
+        steps.findIndex(
+          step =>
+            !step.instruction.trim()
+        );
+
+      if (
+        emptyInstructionIndex !==
+        -1
+      ) {
+        window.alert(
+          `Step ${emptyInstructionIndex + 1} has no instruction.`
+        );
+
+        return;
+      }
+
+      syncSteps(
+        current =>
+          current.map(
+            step => ({
+              ...step,
+              status:
+                'IDLE',
+              output:
+                null,
+              error:
+                null
+            })
+          )
+      );
+
+      await runSequentially(
+        0
+      );
+    };
+
+  const handlePause =
+    () => {
+      if (
+        workflowStatus !==
+        'RUNNING'
+      ) {
+        return;
+      }
+
+      pauseRequestedRef.current =
+        true;
+    };
+
+  const handleContinue =
+    async () => {
+      if (
+        workflowStatus ===
+        'RUNNING'
+      ) {
+        return;
+      }
+
+      const currentSteps =
+        stepsRef.current.length
+          ? stepsRef.current
+          : steps;
+
+      const nextIndex =
+        currentSteps.findIndex(
+          step =>
+            step.status !==
+            'COMPLETE'
+        );
+
+      if (
+        nextIndex === -1
+      ) {
+        setWorkflowStatus(
+          'COMPLETE'
+        );
+
+        return;
+      }
+
+      await runSequentially(
+        nextIndex
+      );
     };
 
   return (
@@ -729,6 +1097,18 @@ export default function App() {
             steps
           }
 
+          workflowStatus={
+            workflowStatus
+          }
+
+          completedCount={
+            completedCount
+          }
+
+          progressPercent={
+            progressPercent
+          }
+
           onAddStep={
             addStep
           }
@@ -747,6 +1127,18 @@ export default function App() {
 
           onRunStep={
             runStep
+          }
+
+          onRunAll={
+            handleRunAll
+          }
+
+          onPause={
+            handlePause
+          }
+
+          onContinue={
+            handleContinue
           }
         />
       )}
@@ -835,7 +1227,6 @@ React.FC<
           </div>
 
           <label className="upload-button">
-
             Upload Script
 
             <input
@@ -846,7 +1237,6 @@ React.FC<
               }
               hidden
             />
-
           </label>
 
         </div>
@@ -928,6 +1318,15 @@ interface WorkflowScreenProps {
   steps:
     WorkflowStep[];
 
+  workflowStatus:
+    WorkflowStatus;
+
+  completedCount:
+    number;
+
+  progressPercent:
+    number;
+
   onAddStep:
     () => void;
 
@@ -959,6 +1358,15 @@ interface WorkflowScreenProps {
       stepIndex:
         number
     ) => void;
+
+  onRunAll:
+    () => void;
+
+  onPause:
+    () => void;
+
+  onContinue:
+    () => void;
 }
 
 const WorkflowScreen:
@@ -968,12 +1376,22 @@ React.FC<
   script,
   fileName,
   steps,
+  workflowStatus,
+  completedCount,
+  progressPercent,
   onAddStep,
   onUpdateStep,
   onDeleteStep,
   onMoveStep,
-  onRunStep
+  onRunStep,
+  onRunAll,
+  onPause,
+  onContinue
 }) => {
+  const isRunning =
+    workflowStatus ===
+    'RUNNING';
+
   return (
     <main className="main-content">
 
@@ -1001,6 +1419,9 @@ React.FC<
           onClick={
             onAddStep
           }
+          disabled={
+            isRunning
+          }
         >
           + Add Step
         </button>
@@ -1010,7 +1431,6 @@ React.FC<
       <section className="project-summary">
 
         <div>
-
           <span className="summary-label">
             SCRIPT
           </span>
@@ -1019,11 +1439,9 @@ React.FC<
             {fileName ||
               'Pasted Script'}
           </strong>
-
         </div>
 
         <div>
-
           <span className="summary-label">
             CHARACTERS
           </span>
@@ -1031,11 +1449,9 @@ React.FC<
           <strong>
             {script.length.toLocaleString()}
           </strong>
-
         </div>
 
         <div>
-
           <span className="summary-label">
             STEPS
           </span>
@@ -1043,10 +1459,100 @@ React.FC<
           <strong>
             {steps.length}
           </strong>
-
         </div>
 
       </section>
+
+      {steps.length > 0 && (
+        <section className="workflow-runtime-panel">
+
+          <div className="workflow-runtime-top">
+
+            <div>
+
+              <span className="summary-label">
+                WORKFLOW STATUS
+              </span>
+
+              <strong className="workflow-status-text">
+                {workflowStatus}
+              </strong>
+
+            </div>
+
+            <div className="workflow-controls">
+
+              <button
+                type="button"
+                className="workflow-run-button"
+                onClick={
+                  onRunAll
+                }
+                disabled={
+                  isRunning
+                }
+              >
+                RUN ALL
+              </button>
+
+              <button
+                type="button"
+                className="workflow-pause-button"
+                onClick={
+                  onPause
+                }
+                disabled={
+                  !isRunning
+                }
+              >
+                PAUSE
+              </button>
+
+              <button
+                type="button"
+                className="workflow-continue-button"
+                onClick={
+                  onContinue
+                }
+                disabled={
+                  isRunning ||
+                  workflowStatus ===
+                    'COMPLETE'
+                }
+              >
+                CONTINUE
+              </button>
+
+            </div>
+
+          </div>
+
+          <div className="workflow-progress-label">
+
+            <span>
+              {completedCount} / {steps.length} completed
+            </span>
+
+            <strong>
+              {progressPercent}%
+            </strong>
+
+          </div>
+
+          <div className="workflow-progress-track">
+
+            <div
+              className="workflow-progress-fill"
+              style={{
+                width:
+                  `${progressPercent}%`
+              }}
+            />
+
+          </div>
+
+        </section>
+      )}
 
       {steps.length === 0
         ? (
@@ -1109,6 +1615,10 @@ React.FC<
                     'COMPLETE'
                   }
 
+                  workflowRunning={
+                    isRunning
+                  }
+
                   onUpdate={
                     patch =>
                       onUpdateStep(
@@ -1156,6 +1666,9 @@ React.FC<
               onClick={
                 onAddStep
               }
+              disabled={
+                isRunning
+              }
             >
               + Add Another Step
             </button>
@@ -1182,6 +1695,9 @@ interface WorkflowStepCardProps {
     number;
 
   previousComplete:
+    boolean;
+
+  workflowRunning:
     boolean;
 
   onUpdate:
@@ -1211,6 +1727,7 @@ React.FC<
   index,
   totalSteps,
   previousComplete,
+  workflowRunning,
   onUpdate,
   onDelete,
   onMoveUp,
@@ -1223,6 +1740,10 @@ React.FC<
 
   const isLocked =
     !previousComplete;
+
+  const editingDisabled =
+    isRunning ||
+    workflowRunning;
 
   return (
     <article className="workflow-step-card">
@@ -1256,7 +1777,7 @@ React.FC<
                 step.name
               }
               disabled={
-                isRunning
+                editingDisabled
               }
               onChange={
                 event =>
@@ -1279,7 +1800,7 @@ React.FC<
               }
               disabled={
                 index === 0 ||
-                isRunning
+                editingDisabled
               }
             >
               ↑
@@ -1294,7 +1815,7 @@ React.FC<
               disabled={
                 index ===
                 totalSteps - 1 ||
-                isRunning
+                editingDisabled
               }
             >
               ↓
@@ -1307,7 +1828,7 @@ React.FC<
                 onDelete
               }
               disabled={
-                isRunning
+                editingDisabled
               }
             >
               ×
@@ -1330,7 +1851,7 @@ React.FC<
               step.instruction
             }
             disabled={
-              isRunning
+              editingDisabled
             }
             onChange={
               event =>
@@ -1357,13 +1878,14 @@ React.FC<
                 step.outputType
               }
               disabled={
-                isRunning
+                editingDisabled
               }
-             onChange={event =>
-  onUpdate({
-    outputType: event.target.value as OutputType
-  })
-}
+              onChange={event =>
+                onUpdate({
+                  outputType:
+                    event.target.value as OutputType
+                })
+              }
             >
 
               <option value="TEXT">
@@ -1390,13 +1912,14 @@ React.FC<
                 step.outputDestination
               }
               disabled={
-                isRunning
+                editingDisabled
               }
               onChange={event =>
-  onUpdate({
-    outputDestination: event.target.value as OutputDestination
-  })
-}
+                onUpdate({
+                  outputDestination:
+                    event.target.value as OutputDestination
+                })
+              }
             >
 
               <option value="GENERAL">
@@ -1439,6 +1962,7 @@ React.FC<
             }
             disabled={
               isRunning ||
+              workflowRunning ||
               isLocked ||
               !step.instruction.trim()
             }
@@ -1476,14 +2000,12 @@ React.FC<
                 type="button"
                 className="copy-output-button"
                 onClick={
-                  () => {
-                    navigator.clipboard
-                      .writeText(
-                        formatOutput(
-                          step.output
-                        )
-                      );
-                  }
+                  () =>
+                    navigator.clipboard.writeText(
+                      formatOutput(
+                        step.output
+                      )
+                    )
                 }
               >
                 Copy
