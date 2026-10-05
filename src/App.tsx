@@ -1678,11 +1678,14 @@ React.FC<
                    </section>
         )}
 
-      <FinalOutputs
+          <FinalOutputs
         steps={steps}
       />
 
     </main>
+  );
+};
+
 /* =====================================================
    WORKFLOW STEP CARD
 ===================================================== */
