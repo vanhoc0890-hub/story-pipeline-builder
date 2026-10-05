@@ -1675,13 +1675,14 @@ React.FC<
               + Add Another Step
             </button>
 
-          </section>
+                   </section>
         )}
 
-    </main>
-  );
-};
+      <FinalOutputs
+        steps={steps}
+      />
 
+    </main>
 /* =====================================================
    WORKFLOW STEP CARD
 ===================================================== */
