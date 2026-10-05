@@ -625,21 +625,27 @@ export default function App() {
               previous.status ===
               'COMPLETE'
           )
-          .map(
-            (
-              previous,
-              index
-            ) => ({
-              stepNumber:
-                index + 1,
+         .map(
+  (
+    previous,
+    index
+  ) => ({
+    stepNumber:
+      index + 1,
 
-              name:
-                previous.name,
+    name:
+      previous.name,
 
-              output:
-                previous.output
-            })
-          );
+    outputType:
+      previous.outputType,
+
+    outputDestination:
+      previous.outputDestination,
+
+    output:
+      previous.output
+  })
+);
 
       syncSteps(
         current =>
@@ -674,21 +680,24 @@ export default function App() {
                   'application/json'
               },
 
-              body:
-                JSON.stringify({
-                  script,
+             body:
+  JSON.stringify({
+    script,
 
-                  stepName:
-                    step.name,
+    stepName:
+      step.name,
 
-                  instruction:
-                    step.instruction,
+    instruction:
+      step.instruction,
 
-                  previousOutputs,
+    previousOutputs,
 
-                  outputType:
-                    step.outputType
-                })
+    outputType:
+      step.outputType,
+
+    outputDestination:
+      step.outputDestination
+  })
             }
           );
 
