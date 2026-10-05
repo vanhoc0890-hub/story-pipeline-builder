@@ -378,3 +378,488 @@ input {
     min-height: 420px;
   }
 }
+/* =====================================================
+   TOPBAR ACTIONS
+===================================================== */
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* =====================================================
+   WORKFLOW HEADER
+===================================================== */
+
+.workflow-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.workflow-header h2 {
+  margin: 0 0 8px;
+  color: #ffffff;
+  font-size: clamp(26px, 3vw, 38px);
+  letter-spacing: -0.03em;
+}
+
+.workflow-header p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+/* =====================================================
+   PROJECT SUMMARY
+===================================================== */
+
+.project-summary {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+
+  gap: 1px;
+
+  overflow: hidden;
+
+  margin-bottom: 28px;
+
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+
+  background: #1e293b;
+}
+
+.project-summary > div {
+  padding: 16px 18px;
+  background: #0f172a;
+
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.summary-label {
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+}
+
+.project-summary strong {
+  color: #e2e8f0;
+  font-size: 13px;
+}
+
+/* =====================================================
+   EMPTY WORKFLOW
+===================================================== */
+
+.empty-workflow {
+  min-height: 360px;
+
+  border: 1px dashed #334155;
+  border-radius: 16px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  padding: 40px;
+  text-align: center;
+
+  background: rgba(
+    15,
+    23,
+    42,
+    0.45
+  );
+}
+
+.empty-icon {
+  width: 54px;
+  height: 54px;
+
+  margin-bottom: 18px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #3730a3;
+  border-radius: 14px;
+
+  background: rgba(
+    79,
+    70,
+    229,
+    0.12
+  );
+
+  color: #818cf8;
+  font-size: 28px;
+}
+
+.empty-workflow h3 {
+  margin: 0 0 8px;
+  color: #ffffff;
+  font-size: 18px;
+}
+
+.empty-workflow p {
+  max-width: 500px;
+
+  margin: 0 0 22px;
+
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+/* =====================================================
+   WORKFLOW LIST
+===================================================== */
+
+.workflow-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.workflow-step-card {
+  display: grid;
+
+  grid-template-columns:
+    58px
+    minmax(0, 1fr);
+
+  gap: 14px;
+}
+
+/* =====================================================
+   STEP NUMBER
+===================================================== */
+
+.step-number-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.step-number {
+  width: 40px;
+  height: 40px;
+
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #4f46e5;
+  border-radius: 50%;
+
+  background: #312e81;
+  color: #ffffff;
+
+  font-size: 12px;
+  font-weight: 900;
+
+  box-shadow:
+    0 0 0 5px #020617;
+}
+
+.step-connector {
+  width: 1px;
+  min-height: 34px;
+  flex: 1;
+
+  background:
+    linear-gradient(
+      to bottom,
+      #4f46e5,
+      #1e293b
+    );
+}
+
+/* =====================================================
+   STEP EDITOR
+===================================================== */
+
+.step-editor {
+  margin-bottom: 22px;
+
+  padding: 22px;
+
+  border: 1px solid #1e293b;
+  border-radius: 14px;
+
+  background: #0f172a;
+
+  box-shadow:
+    0 18px 45px rgba(
+      0,
+      0,
+      0,
+      0.18
+    );
+}
+
+.step-editor-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+
+  gap: 18px;
+
+  margin-bottom: 20px;
+}
+
+.step-title-input-wrap {
+  flex: 1;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.step-title-input-wrap label,
+.field-group label {
+  color: #64748b;
+
+  font-size: 9px;
+  font-weight: 800;
+
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* =====================================================
+   INPUTS
+===================================================== */
+
+.text-input,
+.select-input,
+.instruction-textarea {
+  width: 100%;
+
+  border: 1px solid #334155;
+  border-radius: 8px;
+
+  outline: none;
+
+  background: #020617;
+  color: #e2e8f0;
+}
+
+.text-input {
+  padding: 10px 12px;
+
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.select-input {
+  padding: 10px 12px;
+
+  font-size: 12px;
+}
+
+.instruction-textarea {
+  min-height: 190px;
+
+  padding: 15px;
+
+  resize: vertical;
+
+  font-family:
+    "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.text-input:focus,
+.select-input:focus,
+.instruction-textarea:focus {
+  border-color: #6366f1;
+
+  box-shadow:
+    0 0 0 2px rgba(
+      99,
+      102,
+      241,
+      0.12
+    );
+}
+
+/* =====================================================
+   STEP OPTIONS
+===================================================== */
+
+.step-options-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 16px;
+
+  margin-top: 18px;
+}
+
+.step-controls {
+  display: flex;
+  gap: 7px;
+}
+
+.icon-button {
+  width: 34px;
+  height: 34px;
+
+  border: 1px solid #334155;
+  border-radius: 7px;
+
+  background: #172033;
+  color: #94a3b8;
+
+  cursor: pointer;
+
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.icon-button:hover:not(:disabled) {
+  border-color: #6366f1;
+  color: #ffffff;
+}
+
+.icon-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.danger-button:hover {
+  border-color: #ef4444;
+  background: rgba(
+    127,
+    29,
+    29,
+    0.3
+  );
+  color: #fca5a5;
+}
+
+.step-order-note {
+  margin-top: 18px;
+  padding-top: 14px;
+
+  border-top: 1px solid #1e293b;
+
+  color: #475569;
+
+  font-size: 9px;
+  font-weight: 800;
+
+  letter-spacing: 0.12em;
+}
+
+.add-step-bottom {
+  margin-left: 72px;
+  margin-top: 4px;
+
+  padding: 15px;
+
+  border: 1px dashed #334155;
+  border-radius: 10px;
+
+  background: transparent;
+  color: #64748b;
+
+  cursor: pointer;
+
+  font-size: 11px;
+  font-weight: 800;
+
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.add-step-bottom:hover {
+  border-color: #6366f1;
+  color: #a5b4fc;
+  background: rgba(
+    79,
+    70,
+    229,
+    0.06
+  );
+}
+
+/* =====================================================
+   WORKFLOW RESPONSIVE
+===================================================== */
+
+@media (max-width: 720px) {
+
+  .topbar {
+    align-items: flex-start;
+  }
+
+  .topbar-actions {
+    flex-direction: column;
+  }
+
+  .workflow-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .workflow-header .primary-button {
+    width: 100%;
+  }
+
+  .project-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-step-card {
+    grid-template-columns:
+      36px
+      minmax(0, 1fr);
+
+    gap: 8px;
+  }
+
+  .step-number {
+    width: 30px;
+    height: 30px;
+    font-size: 10px;
+  }
+
+  .step-editor {
+    padding: 16px;
+  }
+
+  .step-editor-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .step-options-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .add-step-bottom {
+    margin-left: 44px;
+  }
+}
