@@ -6,6 +6,8 @@ import React, {
 
 import { API_URL } from './config';
 
+import { FinalOutputs } from './FinalOutputs';
+
 type AppView =
   | 'SCRIPT'
   | 'WORKFLOW';
