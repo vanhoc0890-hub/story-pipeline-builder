@@ -1392,14 +1392,11 @@ React.FC<
               disabled={
                 isRunning
               }
-              onChange={
-                event =>
-                  onUpdate({
-                    outputDestination:
-                      event.target.value
-                        as OutputDestination
-                  })
-              }
+              onChange={event =>
+  onUpdate({
+    outputDestination: event.target.value as OutputDestination
+  })
+}
             >
 
               <option value="GENERAL">
