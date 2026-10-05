@@ -1359,14 +1359,11 @@ React.FC<
               disabled={
                 isRunning
               }
-              onChange={
-                event =>
-                  onUpdate({
-                    outputType:
-                      event.target.value
-                        as OutputType
-                  })
-              }
+             onChange={event =>
+  onUpdate({
+    outputType: event.target.value as OutputType
+  })
+}
             >
 
               <option value="TEXT">
